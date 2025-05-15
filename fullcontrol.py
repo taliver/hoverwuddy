@@ -41,7 +41,7 @@ Kp = 2.5  # Proportional gain
 Ki = 0.1  # Integral gain
 Kd = 0.75 # Derivative gain
  
-pid = PIDController(
+pid = pidcontroller.PIDController(
         Kp=Kp, Ki=Ki, Kd=Kd,
         setpoint=desired_distance,
         output_limits=(min_follower_acceleration, max_follower_acceleration), # PID output is acceleration
@@ -195,7 +195,7 @@ while True:
     # 5. Find contours in the mask
     # Use RETR_EXTERNAL to get only outer contours
     # Use CHAIN_APPROX_SIMPLE to save memory
-    _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     found_circle = False
     if contours:
