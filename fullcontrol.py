@@ -4,6 +4,7 @@ import serial
 import time # Optional: add a small delay after opening port
 import cv2
 import numpy as np
+import pid as pidcontroller
 
 # --- Constants ---
 START_FRAME = 0xAAAA
@@ -25,7 +26,30 @@ PACK_FORMAT = '<HhhH' # Ensure endianness matches receiver!
 
 print(f"Opening serial port {SERIAL_PORT} at {BAUD_RATE} baud...")
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+# --- Follower (Device) Parameters ---
+initial_follower_speed = 0.0  # m/s
+desired_distance = 1.0  # meter
+initial_distance = 1.0 # meter
 
+max_follower_speed = 2.0  # m/s
+min_follower_speed = -0.5 # m/s (allow some reverse or ability to stop fully)
+max_follower_acceleration = 0.8 # m/s^2 (PID output_limits will be this)
+min_follower_acceleration = -0.8 # m/s^2
+# --- PID Controller Setup ---
+# These gains will likely need tuning for optimal performance.
+Kp = 2.5  # Proportional gain
+Ki = 0.1  # Integral gain
+Kd = 0.75 # Derivative gain
+ 
+pid = PIDController(
+        Kp=Kp, Ki=Ki, Kd=Kd,
+        setpoint=desired_distance,
+        output_limits=(min_follower_acceleration, max_follower_acceleration), # PID output is acceleration
+        integral_limits=(-1.0, 1.0) # Limit integral term to prevent excessive windup
+    )
+
+pid._previous_time = time.time() - 0.2 # Pre-initialize previous_time for the first PID dt calculation
+  
 
 def GetDirection(x):
     offset = x - 160
@@ -36,22 +60,28 @@ def GetDirection(x):
         return 500
     return offset
 
+
+# Initial speed of robot
+speed = 0
+previous_update = time.time()
+print("Previous update: ", previous_update)
+
 def GetSpeed(diameter):
-    target_diameter = 55  # Ideal size of the circle (distance where you want to stay)
-    error = target_diameter - diameter
+        global previous_update
+        global speed
+        global pid
+        current_distance = diameter * 0.01  # Note, make this value be meters.
+        dt = time.time() - previous_update
+        pid_output_acceleration_signed_raw = pid.update(current_value=current_distance, dt=dt)
+        acceleration = -pid_output_acceleration_signed_raw # Apply the negation as discussed
 
-    # Proportional gain (tune this value to get better response)
-    kP = 5
+        speed += acceleration * dt
+        previous_update = time.time()
+        return speed
 
-    speed = error * kP
 
-    # Clamp the speed to a reasonable range
-    if speed > 100:
-        speed = 100
-    elif speed < -100:
-        speed = -100
 
-    return speed
+        
 
 
 # --- Checksum Function ---
@@ -64,8 +94,9 @@ def calculate_checksum(steer_val, speed_val):
     checksum = (START_FRAME ^ steer_val ^ speed_val) & 0xFFFF
     return checksum
 
-def Control(steer_in, speed_in):
-
+def Control(r_steer_in, r_speed_in):
+    speed_in = int(r_speed_in)
+    steer_in = int(r_steer_in)
     # 3. Calculate Checksum
     checksum_val = calculate_checksum(steer_in, speed_in)
 
