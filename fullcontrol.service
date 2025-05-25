@@ -1,0 +1,17 @@
+[Unit]
+Description=Run fullcontrol.py in a screen session
+After=network.target
+ConditionPathExists=!/tmp/stop
+
+[Service]
+#User=pi  # Replace 'pi' with your actual username if it's different
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/screen -dmS fullcontrol /home/pi/fullcontrol.sh
+Type=forking
+#ExecStart=/home/pi/fullcontrol.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

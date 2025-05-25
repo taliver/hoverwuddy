@@ -12,7 +12,7 @@ class Finder:
     def __init__(self, img_width=320, img_height=240,
                  lower_yellow_hsv=np.array([20, 100, 100]),
                  upper_yellow_hsv=np.array([30, 255, 255]),
-                 min_radius_pixels=10,
+                 min_radius_pixels=5,
                  camera_warmup_time=1.5):
         """
         Initializes the Yellow Circle Finder configuration.
@@ -97,6 +97,7 @@ class Finder:
         max_radius = 0
 
         if contours:
+            print("Found countours:", len(contours))
             for contour in contours:
                 (x, y), radius = cv2.minEnclosingCircle(contour)
                 radius_int = int(radius)

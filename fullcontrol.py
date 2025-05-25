@@ -42,42 +42,66 @@ Kp = 2.5  # Proportional gain
 Ki = 0.1  # Integral gain
 Kd = 0.75 # Derivative gain
  
-pid = pidcontroller.PIDController(
+speed_pid = pidcontroller.PIDController(
         Kp=Kp, Ki=Ki, Kd=Kd,
         setpoint=desired_distance,
         output_limits=(min_follower_acceleration, max_follower_acceleration), # PID output is acceleration
         integral_limits=(-1.0, 1.0) # Limit integral term to prevent excessive windup
     )
 
-pid._previous_time = time.time() - 0.2 # Pre-initialize previous_time for the first PID dt calculation
+speed_pid._previous_time = time.time() - 0.2 # Pre-initialize previous_time for the first PID dt calculation
   
+direction_pid = pidcontroller.PIDController(
+        Kp=Kp, Ki=Ki, Kd=Kd,
+        setpoint=0,
+        output_limits=(-10, 10), # PID output i a radial acceleration
+        integral_limits=(-1.0, 1.0) # Limit integral term to prevent excessive windup
+    )
+
+
+direction = 0
+direction_previous_update = time.time()
 
 def GetDirection(x):
-    offset = x - 160
-    offset = offset * 10
-    if offset < -500:
-        return -500
-    if offset > 500:
-        return 500
-    return offset
+    global direction_pid
+    global direction
+    global direction_previous_update
+    target = x - 160
+    if x < 0:
+	# In ths case, we are slowly going to go straight again.
+        target = 0
+    dt = time.time() - direction_previous_update
+    raw_dir_output = direction_pid.update(current_value=target, dt=dt)
+    direction = direction - (raw_dir_output * dt)
+    direction_previous_update = time.time()
+    if direction < -300:
+        direction = -300
+        return -300
+    if direction > 300:
+        direction = 300
+        return 300
+    return direction
 
 
 # Initial speed of robot
 speed = 0
-previous_update = time.time()
-print("Previous update: ", previous_update)
+speed_previous_update = time.time()
 
 def GetSpeed(diameter):
-        global previous_update
+        global speed_previous_update
         global speed
-        global pid
-        current_distance = diameter * 0.01  # Note, make this value be meters.
-        dt = time.time() - previous_update
-        pid_output_acceleration_signed_raw = pid.update(current_value=current_distance, dt=dt)
+        global speed_pid
+        global desired_distance
+        if diameter < 0:
+            current_distance = desired_distance
+        else:
+            current_distance = diameter / 30.0  # Note, make this value be meters.
+        dt = time.time() - speed_previous_update
+        pid_output_acceleration_signed_raw = speed_pid.update(current_value=current_distance, dt=dt)
         acceleration = -pid_output_acceleration_signed_raw # Apply the negation as discussed
 
         speed += acceleration * dt
-        previous_update = time.time()
+        speed_previous_update = time.time()
         return speed
 
 
@@ -137,7 +161,7 @@ YELLOW_LOWER = np.array([20, 100, 100])
 YELLOW_UPPER = np.array([35, 255, 255])
 
 # Minimum contour area to filter out noise
-MIN_CONTOUR_AREA = 200
+MIN_CONTOUR_AREA = 20
 
 # --- Camera Initialization ---
 # Use 0 for the default camera (often /dev/video0)
@@ -166,9 +190,13 @@ while True:
         speed = GetSpeed(diameter)
         print(f"Yellow Circle Found! Center: ({center[0]}, {center[1]}), Diameter: {diameter} pixels")
         Control(direction, speed)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    else:
+        direction = GetDirection(-1000)
+        speed = GetSpeed(-1000)
+        print(f"No Circle found...")
+        Control(direction, speed)
+    #if cv2.waitKey(1) & 0xFF == ord('q'):
+    #    break
 
 # --- Cleanup ---
 print("Releasing camera and closing windows.")
