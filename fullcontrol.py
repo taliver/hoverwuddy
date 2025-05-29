@@ -95,13 +95,17 @@ def GetSpeed(diameter):
         if diameter < 0:
             current_distance = desired_distance
         else:
-            current_distance = diameter / 30.0  # Note, make this value be meters.
+            current_distance = 30.0 / diameter   # Note, make this value be meters.
         dt = time.time() - speed_previous_update
         pid_output_acceleration_signed_raw = speed_pid.update(current_value=current_distance, dt=dt)
         acceleration = -pid_output_acceleration_signed_raw # Apply the negation as discussed
 
         speed += acceleration * dt
         speed_previous_update = time.time()
+        if speed > 500:
+            speed = 500
+        if speed < -500:
+            speed = -500
         return speed
 
 
@@ -125,10 +129,10 @@ def Control(r_steer_in, r_speed_in):
     # 3. Calculate Checksum
     checksum_val = calculate_checksum(steer_in, speed_in)
 
-    print(f"Start Frame: {START_FRAME:#04x}")
-    print(f"Steer      : {steer_in}")
+    #    print(f"Start Frame: {START_FRAME:#04x}")
+    # print(f"Steer      : {steer_in}")
     print(f"Speed      : {speed_in}")
-    print(f"Checksum   : {checksum_val:#04x} ({checksum_val})")
+    # print(f"Checksum   : {checksum_val:#04x} ({checksum_val})")
 
     # 4. Pack the data into a binary structure
     try:
@@ -186,7 +190,7 @@ while True:
     found, center_x, center_y, diameter = yellow_finder.FindCircle()
     if found:
         center = (center_x, center_y)
-        direction = GetDirection(center_x)
+        direction = GetDirection(center_y)
         speed = GetSpeed(diameter)
         print(f"Yellow Circle Found! Center: ({center[0]}, {center[1]}), Diameter: {diameter} pixels")
         Control(direction, speed)
